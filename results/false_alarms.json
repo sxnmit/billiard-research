@@ -1,0 +1,23 @@
+{
+ "overhead": {
+  "ball": 9,
+  "rolling": 6,
+  "cushion": 6,
+  "strike": 2,
+  "land": 2,
+  "near flight": 1
+ },
+ "broadcast": {
+  "ball": 3,
+  "land": 2,
+  "near flight": 1,
+  "rolling": 1
+ },
+ "fused": {
+  "ball": 4,
+  "rolling": 2,
+  "land": 1,
+  "cushion": 2,
+  "near flight": 1
+ }
+}

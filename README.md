@@ -41,6 +41,7 @@ scripts/
   make_clips.py          render clips (+ ground truth)
   extract_features.py    track + compute cues for every clip
   evaluate.py            train/test the classifier, cue ablations, figures
+  analyze_errors.py      bootstrap intervals and false-alarm attribution
   cue_geometry.py        pixels of signal per mm of height, per cue and camera
   make_frames_figure.py  qualitative figure
   make_paper_numbers.py  results/numbers.tex for the paper
@@ -55,6 +56,7 @@ python scripts/make_clips.py --random 200 --seed 1 --randomize --out data/synth 
 python scripts/extract_features.py data/clips data/synth --out data/features
 python scripts/cue_geometry.py
 python scripts/evaluate.py
+python scripts/analyze_errors.py         # bootstrap intervals, false-alarm attribution
 python scripts/make_paper_numbers.py
 python scripts/make_frames_figure.py data/clips/jump_over_blocker paper/figures/frames_jump_over_blocker.png
 cd paper && latexmk -pdf main.tex
