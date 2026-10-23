@@ -191,22 +191,25 @@ class CueTracker:
         out = dict(found=np.zeros(T, bool), uv=np.full((T, 2), np.nan), r_exp=np.full(T, np.nan),
                    shadow=np.zeros((T, 6)),
                    **{k: np.full(T, np.nan) for k in ("r_area", "r_perp", "rc_area", "rc_perp", "blur")})
-        prev, vel = None, np.zeros(2)
+        prev, vel, missed = None, np.zeros(2), 0
         for t in range(T):
             img = c.frames[t].astype(np.float32) / 255
             mask = self._white_mask(img).astype(np.uint8)
             n, lab, stats, cents = cv2.connectedComponentsWithStats(mask, 8)
             cand = [(cents[i], stats[i, cv2.CC_STAT_AREA]) for i in range(1, n)
                     if stats[i, cv2.CC_STAT_AREA] > 0.25 * np.pi * self.r_centre ** 2]
+            missed += 1
             if not cand:
-                prev = None if t - (out["found"].nonzero()[0][-1] if out["found"].any() else -99) > 10 else prev
                 continue
             if prev is None:
-                # initialise on the roundest, largest white blob
+                # initialise on the largest white blob (stripes show only partial white)
                 cen, _ = max(cand, key=lambda ca: ca[1])
             else:
-                pred = prev + vel
-                gate = max(4 * self.r_centre, 1.5 * np.linalg.norm(vel) + 2 * self.r_centre)
+                # the gate grows while the ball is lost, so a hard strike (tens of
+                # pixels per frame from a standstill) is re-acquired
+                pred = prev + vel * missed
+                gate = max(4 * self.r_centre, 1.5 * np.linalg.norm(vel) + 2 * self.r_centre) + \
+                    6 * self.r_centre * (missed - 1)
                 dists = [np.linalg.norm(ca[0] - pred) for ca in cand]
                 k = int(np.argmin(dists))
                 if dists[k] > gate:
@@ -218,8 +221,8 @@ class CueTracker:
                 continue
             uv = res["uv"]
             if prev is not None:
-                vel = 0.6 * (uv - prev) + 0.4 * vel
-            prev = uv
+                vel = 0.6 * (uv - prev) / missed + 0.4 * vel
+            prev, missed = uv, 0
             out["found"][t] = True
             out["uv"][t] = uv
             for k in ("r_area", "r_perp", "rc_area", "rc_perp", "blur"):
