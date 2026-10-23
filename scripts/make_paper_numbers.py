@@ -17,7 +17,7 @@ from jumpsim.detect import Clip, CueTracker, sphere_centre_image  # noqa: E402
 
 
 def tex_escape(s: str) -> str:
-    return s.replace("_", r"\_").replace("%", r"\%").replace("&", r"\&")
+    return s.replace("_", r"\_").replace("%", r"\%").replace("&", r"\&").replace("~", r"$\sim$")
 
 
 def main():

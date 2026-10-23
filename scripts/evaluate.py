@@ -241,6 +241,9 @@ def main():
     write_table(results, heights, a.out / "table_ablation.tex")
     fig_recall_vs_apex(keep, a.figs / "recall_vs_apex.pdf")
     fig_showcase(showcase, data, a.figs / "showcase_timeseries.pdf")
+    np.savez_compressed(a.out / "test_predictions.npz", clips=np.array(test),
+                        **{f"{v}__{k}__{c}": keep[(v, c)][1][k] for v in ("overhead", "broadcast", "fused")
+                           for c in ("all",) for k in ("p", "h", "g", "k", "thr")})
     imp = importance(data, test, keep)
     json.dump(imp, open(a.out / "importance.json", "w"), indent=1)
 
@@ -291,7 +294,9 @@ def fig_recall_vs_apex(keep, path):
             ax.plot(range(len(bins) - 1), rec, style, marker="o", ms=3, label=cue,
                     color="k" if cue == "all" else None)
         ax.set_xticks(range(len(bins) - 1))
-        ax.set_xticklabels([f"{int(bins[i]*1000)}-{int(bins[i+1]*1000)}" for i in range(len(bins) - 1)], fontsize=7)
+        idx = np.digitize(keep[(view, "all")][1]["apex"], bins) - 1
+        ax.set_xticklabels([f"{int(bins[i]*1000)}-{int(bins[i+1]*1000)}\n(n={(idx == i).sum()})"
+                            for i in range(len(bins) - 1)], fontsize=7)
         ax.set_title({"fused": "both views"}.get(view, view), fontsize=9)
         ax.set_xlabel("event apex height (mm)", fontsize=8)
         ax.set_ylim(0, 1.02)

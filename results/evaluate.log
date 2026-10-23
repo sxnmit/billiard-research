@@ -1,0 +1,28 @@
+140 train shots, 60 test shots, 7 showcase clips
+{'train_shots': 140, 'test_shots': 60, 'train_frames': 17772, 'test_frames': 7403, 'train_pos_frac': 0.1128741841098357, 'test_pos_frac': 0.09982439551533162, 'train_dontcare_frac': 0.02464550979068197}
+overhead  size           AP=0.618 AUROC=0.886 F1=0.600 evR=0.744 FA/min=20.91 shotAUC=0.746
+overhead  shadow         AP=0.782 AUROC=0.919 F1=0.712 evR=0.872 FA/min=6.81 shotAUC=0.897
+overhead  motion         AP=0.593 AUROC=0.916 F1=0.576 evR=1.000 FA/min=24.31 shotAUC=0.705
+overhead  size+shadow    AP=0.814 AUROC=0.940 F1=0.722 evR=0.897 FA/min=15.56 shotAUC=0.896
+overhead  size+motion    AP=0.729 AUROC=0.939 F1=0.646 evR=0.744 FA/min=11.18 shotAUC=0.725
+overhead  shadow+motion  AP=0.853 AUROC=0.956 F1=0.767 evR=0.923 FA/min=13.62 shotAUC=0.910
+overhead  all            AP=0.857 AUROC=0.959 F1=0.753 evR=0.821 FA/min=12.64 shotAUC=0.868
+broadcast size           AP=0.399 AUROC=0.808 F1=0.401 evR=0.641 FA/min=20.42 shotAUC=0.556
+broadcast shadow         AP=0.792 AUROC=0.943 F1=0.722 evR=0.872 FA/min=14.10 shotAUC=0.817
+broadcast motion         AP=0.861 AUROC=0.968 F1=0.764 evR=0.769 FA/min=8.27 shotAUC=0.821
+broadcast size+shadow    AP=0.789 AUROC=0.949 F1=0.710 evR=0.872 FA/min=11.18 shotAUC=0.832
+broadcast size+motion    AP=0.903 AUROC=0.980 F1=0.818 evR=0.821 FA/min=4.38 shotAUC=0.867
+broadcast shadow+motion  AP=0.916 AUROC=0.982 F1=0.816 evR=0.846 FA/min=9.24 shotAUC=0.896
+broadcast all            AP=0.932 AUROC=0.986 F1=0.863 evR=0.795 FA/min=3.40 shotAUC=0.912
+fused     size           AP=0.707 AUROC=0.909 F1=0.647 evR=0.692 FA/min=11.18 shotAUC=0.716
+fused     shadow         AP=0.871 AUROC=0.966 F1=0.799 evR=0.923 FA/min=11.18 shotAUC=0.933
+fused     motion         AP=0.910 AUROC=0.985 F1=0.809 evR=0.872 FA/min=11.18 shotAUC=0.919
+fused     size+shadow    AP=0.872 AUROC=0.966 F1=0.780 evR=0.846 FA/min=8.27 shotAUC=0.905
+fused     size+motion    AP=0.952 AUROC=0.992 F1=0.871 evR=0.872 FA/min=6.81 shotAUC=0.901
+fused     shadow+motion  AP=0.961 AUROC=0.993 F1=0.886 evR=0.897 FA/min=5.84 shotAUC=0.947
+fused     all            AP=0.961 AUROC=0.993 F1=0.887 evR=0.897 FA/min=4.86 shotAUC=0.927
+height regression overhead: MAE 13.6 mm, median rel. err 0.27
+height regression broadcast: MAE 14.2 mm, median rel. err 0.24
+height regression fused: MAE 10.7 mm, median rel. err 0.23
+overhead top features: [(np.str_('shadow_mass_delta'), 0.0988713352113731), (np.str_('fit_log_ratio_win_max'), 0.09411771476413792), (np.str_('fit_log_ratio'), 0.07316602649414113), (np.str_('shadow_mass'), 0.06824979719953535), (np.str_('size_lum_win_max'), 0.06065940781105513)]
+broadcast top features: [(np.str_('fit_log_ratio_win_max'), 0.5512002297591116), (np.str_('fit_cost_roll'), 0.014963496252324515), ('accel', 0.012053548034587766), (np.str_('fit_log_ratio'), 0.009247998437277341), (np.str_('shadow_off_delta_win_max'), 0.008359081092316534)]

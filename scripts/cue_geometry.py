@@ -80,8 +80,9 @@ def main():
         ax.set_ylabel("pixels", fontsize=8)
         ax.grid(alpha=0.3)
         ax.tick_params(labelsize=7)
-    axes[0].axhline(0.25, color="0.5", lw=0.8, ls=":")
-    axes[0].text(2, 0.3, "~ size-estimator noise (720p)", fontsize=6, color="0.4")
+    # measured on on-cloth frames of the scenario clips (overhead, 720p): sigma = 0.96 px
+    axes[0].axhline(0.96, color="0.5", lw=0.8, ls=":")
+    axes[0].text(2, 1.0, "measured radius noise, overhead 720p", fontsize=6, color="0.4")
     axes[0].legend(fontsize=6, loc="upper left")
     fig.tight_layout()
     a.figs.mkdir(parents=True, exist_ok=True)

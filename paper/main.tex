@@ -35,7 +35,11 @@ essentially unusable: a ball 1\,cm off the cloth grows by
 move by several pixels per centimetre. We then evaluate a detector built on three
 pixel-derived cue families --- size, shadow and motion (a rolling-versus-ballistic
 model comparison) --- on \NumTest{} held-out randomised shots.
-\INPUTRESULTABSTRACT
+Using both views, the detector reaches a frame-level average precision (AP)
+of 0.96 and finds 90\% of jump events. With a single camera, the broadcast
+view (AP 0.93) beats the overhead view (AP 0.86), where the shadow is the best
+single cue. Flights that rise above 3\,cm are found in every view; centimetre
+hops, and collisions, which cause most false alarms, remain open problems.
 We release the simulator, renderer, clips and detector, and describe a
 protocol for collecting real clips with height ground truth.
 \end{abstract}
@@ -199,9 +203,11 @@ millimetre of height, using the calibrated cameras alone
 \emph{Size.} Raising the ball by $h$ brings it closer to an overhead camera
 at height $H$, scaling its image radius by $(H-R)/(H-R-h)$. At $H=2.6$\,m and
 720p that is \GEOsizeOvTen\,px at $h=10$\,mm and only \GEOsizeOvHundred\,px at
-100\,mm; even 4K gives \GEOsizeFourKTen\,px per centimetre. Our blur-robust
-sub-pixel radius estimator has frame-to-frame noise of roughly 0.25\,px at 720p,
-so apparent size is the weakest cue by an order of magnitude. The broadcast
+100\,mm; even 4K gives \GEOsizeFourKTen\,px per centimetre. The blur-robust
+radius estimator of Sec.~\ref{sec:detector} has a standard deviation of
+0.96\,px on on-cloth frames of the scenario clips (overhead, 720p; 1.7\,px in
+the broadcast view). The geometric size signal of a 10\,cm jump therefore sits
+at the noise floor, and that of a 1\,cm hop is twenty times below it. The broadcast
 camera fares even worse (\GEOsizeBcTen\,px), because height moves the ball across
 the line of sight rather than along it.
 
@@ -245,12 +251,14 @@ the predicted position. Its centre and radius are then refined using a soft
 coverage mask computed against the empty-table frame. Two choices proved
 essential (Sec.~\ref{sec:lessons}). First, coverage is measured as \emph{loss of
 the cloth's green chromaticity} rather than as brightness above the cloth, so the
-ball's unlit underside counts and shadows on the cloth do not; this cut centre
-bias in the broadcast view from 2--3\,px to \TRKcentreErr\,px. Second, the
+ball's unlit underside counts and shadows on the cloth do not; this cut the
+median centre error in the broadcast view from 1.8\,px to \TRKcentreErr\,px
+(overhead: \TRKmedianOverhead\,px). Second, the
 radius is taken from the coverage mask's \emph{minor} second-moment axis,
 because motion blur only stretches the blob along the direction of travel.
-The area-equivalent radius instead grew by up to 25\% in fast flight, and
-that is a speed cue in disguise.
+In the \texttt{jump\_over\_blocker} clip, the area-equivalent radius was
+6--28\% larger during flight, while the geometric change was at most 4\%;
+area is a speed cue in disguise.
 
 \paragraph{Cues.}
 For each frame we compute three cue families. Each is normalised by the still
@@ -307,11 +315,64 @@ by grouped 5-fold cross-validation on the training shots only.
 \input{../results/table_ablation.tex}
 \caption{Cue ablation on \NumTest{} held-out shots (\NumEvents{} jump events).
 AP: frame-level average precision. Ev.\,rec.: event recall. FA/min: false alarms per minute
-of video. Last row: mean absolute error of the regressed height on airborne frames.}
+of video. Recall and false alarms trade off through the threshold chosen on the training
+shots, so compare cue strength by AP. Last row: mean absolute error of the regressed height on
+airborne frames.}
 \label{tab:ablation}
 \end{table}
 
-\INPUTRESULTTEXT
+\paragraph{Which camera, which cue.}
+With all cues, AP is 0.96 using both views (95\% shot-level bootstrap interval
+0.93--0.98), 0.93 from the broadcast camera (0.86--0.98) and 0.86 from overhead
+(0.78--0.91); Table~\ref{tab:ablation}. The single-cue rows follow the geometry
+of Sec.~\ref{sec:geometry}. From overhead the shadow is the best single cue (AP
+0.78) and motion the weakest (0.59), as expected when parallax vanishes below the
+camera; the two are complementary (0.85 together). From the broadcast camera,
+motion is the best single cue (0.86), and the rolling-versus-ballistic
+log-ratio dominates the all-cue model's permutation importance. Size alone is
+the weakest cue in broadcast (0.40) but reaches 0.62 overhead, more than its
+sub-pixel geometric signal can explain. We attribute this to side effects
+that correlate with flight in our renderer, such as an airborne ball overlapping
+the ball it jumps and brightening as it nears the lamps. That is a hypothesis to
+test on real video, and we do not expect the effect to transfer. At the shot level
+(did the cue ball jump at all?), the maximum per-frame probability gives an AUROC of
+0.87 overhead, 0.91 broadcast and 0.93 with both views.
+
+\paragraph{Apex height decides detectability.}
+Every one of the 25 test flights with an apex above 30\,mm is detected by the
+overhead and both-view detectors, and 23 of 25 by the broadcast one
+(Fig.~\ref{fig:apex}). Flights of 15--30\,mm are mostly found (5--6 of 6).
+Hops of 5--15\,mm are mostly missed (2 of 8 per single camera, 4 of 8 with both
+views); at those heights the signal is a few pixels at best. With only
+\NumEvents{} test events, the event-recall intervals are wide: 0.69--0.93 overhead
+and 0.78--0.98 with both views.
+
+\paragraph{False alarms come from collisions.}
+The 60 test shots contain 2.1 minutes of video. The overhead all-cue detector
+raises 26 false alarms (0.43 per shot), the broadcast one 7 and the two-view
+one 10. Of the 26 overhead false alarms, 15 fall within 0.12\,s of the cue ball
+striking another ball (9) or a cushion (6); 2 follow the cue strike, 2 sit just
+past a landing, outside the $\pm$2-frame tolerance, and 7 occur during
+rolling. A collision is a velocity discontinuity that the rolling model cannot
+explain and that a ballistic fit absorbs more easily, and the other ball's
+shadow enters the shadow window at the same moment. The scenario clips show the
+same failure (Fig.~\ref{fig:showcase}): \texttt{stop\_shot} fires in the
+broadcast view at contact, and \texttt{near\_miss} fires (overhead and two-view)
+when the cue ball strikes the object ball, not as it grazes past its neighbour.
+A motion model with an
+explicit collision event is the obvious next step.
+
+\paragraph{Height.}
+The regressed height on airborne frames has a mean absolute error of 13.6\,mm
+overhead, 14.2\,mm broadcast and 10.7\,mm with both views (median relative
+error 27\%, 24\% and 23\%).
+
+\paragraph{Scenario clips.}
+The three clear jumps (apex 75--101\,mm) are detected from every view, with
+$P(\text{airborne})\approx 1$ through the first flight; overhead, the
+detection of \texttt{jump\_over\_blocker} drops out before the second bounce. The
+9\,mm hops in \texttt{break} and \texttt{elevated\_draw} are missed except by the
+two-view detector on the break, as Fig.~\ref{fig:apex} predicts.
 
 \begin{figure}[t]
 \centering
@@ -332,11 +393,11 @@ of video. Last row: mean absolute error of the regressed height on airborne fram
 Three failure modes appeared before any learning, and all three would also
 afflict real footage. (i) \emph{Brightness-based segmentation} misses the
 unlit underside of the ball in the broadcast view; the resulting radius
-estimate drifted by 15\% as the ball moved under different lamps, far more
+estimate drifted by 12--20\% as the ball rolled under different lamps, far more
 than the 4--7\% that 10\,cm of height produces. (ii) \emph{Motion blur
-inflates area}: a fast airborne cue ball looked 10--25\% larger from
-overhead, while the true geometric change was 2--4\%. A size cue measured by
-area is mostly a speed cue. (iii) \emph{Unconstrained motion models explain
+inflates area}: the fast airborne cue ball of \texttt{jump\_over\_blocker}
+looked 6--28\% larger from overhead, while the true geometric change was at most 4\%.
+A size cue measured by area is mostly a speed cue. (iii) \emph{Unconstrained motion models explain
 flight}: a rolling model with free 2D acceleration fits the apparent ground
 track of a short flight about as well as a ballistic model. The model
 comparison only becomes informative once rolling deceleration is bounded by
@@ -367,7 +428,17 @@ hops (present in two scenario clips) are left for future work. Most
 importantly, nothing here has been validated on real video yet.
 
 \section{Conclusion}
-\INPUTRESULTCONCLUSION
+Whether a fixed camera can tell that a pool ball has left the cloth depends
+on the camera and on which evidence it is asked to use. Apparent size, the
+intuitive cue for an overhead camera, carries a sub-pixel signal far below the
+measurement noise. Lamp shadows and a physically constrained comparison of
+rolling and ballistic motion carry the information instead. On synthetic video
+with exact ground truth, the broadcast placement detects jumps better than the
+overhead one, and both together are best (AP 0.96). Flights that rise above
+3\,cm are found reliably; centimetre hops and collision-induced false alarms
+remain open. The next step is the real-clip collection of
+Sec.~\ref{sec:real}, which will test whether these conclusions survive real
+cloth, real lamps and real players.
 
 \bibliographystyle{plainnat}
 \bibliography{refs}
