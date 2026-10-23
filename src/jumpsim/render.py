@@ -153,26 +153,35 @@ class Renderer:
         """Direct irradiance at points P with normals N, with ball shadows.
 
         Each area-light sample counts as a point source with 1/d^2 falloff."""
+        R = self.R
+        lam = self.light.lamps
+        # Points that ball k can shadow: a box spanning the ball's ground position
+        # and its shadows from every lamp (which move far from a high ball).
+        occluders = []
+        for k, c in enumerate(C):
+            s = lam[:, :2] + (c[None, :2] - lam[:, :2]) * (lam[:, 2:] / np.maximum(lam[:, 2:] - c[2], 1e-3))
+            pad = 1.6 * R + self.light.size * c[2] / max(lam[:, 2].min() - c[2], 1e-3) + 0.01
+            lo = np.minimum(s.min(0), c[:2]) - pad
+            hi = np.maximum(s.max(0), c[:2]) + pad
+            near = (P[:, 0] > lo[0]) & (P[:, 0] < hi[0]) & (P[:, 1] > lo[1]) & (P[:, 1] < hi[1])
+            if skip is not None:
+                near &= skip != k
+            idx = np.nonzero(near)[0]
+            if len(idx):
+                oc = P[idx] - c[None]
+                occluders.append((idx, oc, np.einsum("ij,ij->i", oc, oc) - R * R))
         tot = np.zeros(len(P))
         for Ls in self.L:
             D = Ls[None] - P
-            dist = np.linalg.norm(D, axis=1)
+            dist = np.sqrt(np.einsum("ij,ij->i", D, D))
             Dn = D / dist[:, None]
-            cos = np.clip((Dn * N).sum(1), 0, None)
+            cos = np.clip(np.einsum("ij,ij->i", Dn, N), 0, None)
             vis = np.ones(len(P))
-            for k, c in enumerate(C):
-                oc = P - c[None]
-                near = np.abs(oc[:, :2]).max(1) < 0.25
-                if skip is not None:
-                    near &= skip != k
-                if not near.any():
-                    continue
-                b = (Dn[near] * oc[near]).sum(1)
-                cc = (oc[near] ** 2).sum(1) - self.R ** 2
+            for idx, oc, cc in occluders:
+                b = np.einsum("ij,ij->i", Dn[idx], oc)
                 disc = b * b - cc
                 t = -b - np.sqrt(np.clip(disc, 0, None))
-                blocked = (disc > 0) & (t > 1e-6) & (t < dist[near])
-                vis[np.where(near)[0][blocked]] = 0.0
+                vis[idx[(disc > 0) & (t > 1e-6) & (t < dist[idx])]] = 0.0
             tot += vis * cos / dist ** 2
         return tot
 
@@ -273,7 +282,7 @@ class Renderer:
         offs = [(-0.25, -0.25), (0.25, -0.25), (-0.25, 0.25), (0.25, 0.25)]
         for du, dv in offs:
             acc += self._shade(cam.rays(u + du, v + dv), [], np.zeros((0, 3)), np.zeros((0, 3, 3)))
-        return (acc / len(offs)).reshape(cam.height, cam.width, 3)
+        return (acc / len(offs)).reshape(cam.height, cam.width, 3).astype(np.float32)
 
     # ------------------------------------------------------------------ frames
     def _roi_mask(self, C: np.ndarray) -> np.ndarray:
@@ -305,31 +314,50 @@ class Renderer:
 
         Each of the ``spp`` samples per pixel gets its own sub-pixel offset and
         its own instant inside the shutter window."""
-        cam = self.cam
         tt = traj.t
+        ids = np.asarray(ids)
+        static_key, static_img = None, None
         for tf in frame_times:
-            mask_union = None
             samples = []
             for s in range(self.spp):
                 ts = tf + shutter / fps * (s + self.rng.random()) / self.spp
                 k = np.clip(np.searchsorted(tt, ts) - 1, 0, len(tt) - 2)
                 a = np.clip((ts - tt[k]) / (tt[k + 1] - tt[k]), 0.0, 1.0)
-                P = (1 - a) * traj.pos[k] + a * traj.pos[k + 1]
-                act = traj.active[k + 1] & traj.active[k]
-                Rot = traj.rot[k if a < 0.5 else k + 1]
-                C, I, Rs = P[act], [ids[i] for i in np.where(act)[0]], Rot[act]
-                samples.append((C, I, Rs))
-                m = self._roi_mask(C)
-                mask_union = m if mask_union is None else (mask_union | m)
-            img = self.background.copy()
-            vv, uu = np.nonzero(mask_union)
-            if len(uu):
-                acc = np.zeros((len(uu), 3))
-                for C, I, Rs in samples:
-                    du, dv = self.rng.random(2) - 0.5
-                    acc += self._shade(cam.rays(uu + du, vv + dv), I, C, Rs)
-                img[vv, uu] = acc / len(samples)
-            yield img
+                samples.append(((1 - a) * traj.pos[k] + a * traj.pos[k + 1],
+                                traj.active[k + 1] & traj.active[k],
+                                traj.rot[k if a < 0.5 else k + 1]))
+            # Balls whose pose is identical across the whole exposure are drawn
+            # into a cached layer, re-rendered only when that set changes.
+            P0, act0, R0 = samples[0]
+            still = act0.copy()
+            for P, act, Rot in samples[1:]:
+                still &= act & np.all(P == P0, 1) & np.all(Rot == R0, (1, 2))
+            key = (still.tobytes(), P0[still].tobytes(), R0[still].tobytes())
+            if key != static_key:
+                static_img = self._draw(self.background, [(P0[still], ids[still], R0[still])] * self.spp,
+                                        self._roi_mask(P0[still]))
+                static_key = key
+            moving = np.any([act for _, act, _ in samples], 0) & ~still
+            if not moving.any():
+                yield static_img            # callers must not modify frames in place
+                continue
+            mask = np.zeros_like(self.background[..., 0], bool)
+            for P, act, _ in samples:
+                mask |= self._roi_mask(P[act & moving])
+            yield self._draw(static_img, [(P[act], ids[act], Rot[act]) for P, act, Rot in samples], mask)
+
+    def _draw(self, base: np.ndarray, samples, mask: np.ndarray) -> np.ndarray:
+        """Re-render the pixels in ``mask`` over ``base``, averaging one jittered
+        ray per (centres, ids, rotations) sample."""
+        img = base.copy()
+        vv, uu = np.nonzero(mask)
+        if len(uu):
+            acc = np.zeros((len(uu), 3))
+            for C, I, Rs in samples:
+                du, dv = self.rng.random(2) - 0.5
+                acc += self._shade(self.cam.rays(uu + du, vv + dv), list(I), C, Rs)
+            img[vv, uu] = acc / len(samples)
+        return img
 
 
 def to_uint8(img: np.ndarray, rng: np.random.Generator, noise: float = 0.008,
